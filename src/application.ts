@@ -42,19 +42,4 @@ export class Lb4JwtRoleBasedAuthSampleApplication extends BootMixin(ServiceMixin
       },
     };
   }
-
-  async seedData() {
-    const userRepository: UserRepository = await this.getRepository(UserRepository);
-    const roleRepository: RoleRepository = await this.getRepository(RoleRepository);
-    const userRoleRepository: UserRoleRepository = await this.getRepository(UserRoleRepository);
-
-    await userRepository.create({ id: 'admin', password: 'hash-this', email: 'admin@test.test' });
-    await userRepository.create({ id: 'admin2', password: 'hash-this', email: 'admin2@test.test' });
-    await userRepository.create({ id: 'user', password: 'hash-this', email: 'user@test.test' });
-    await roleRepository.create({ id: 'ADMIN', description: 'admin' });
-    await roleRepository.create({ id: 'ADMIN2', description: 'admin2' });
-    await userRoleRepository.create({ userId: 'admin', roleId: 'ADMIN' });
-    await userRoleRepository.create({ userId: 'admin2', roleId: 'ADMIN' });
-    await userRoleRepository.create({ userId: 'admin2', roleId: 'ADMIN2' });
-  }
 }

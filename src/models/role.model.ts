@@ -1,18 +1,29 @@
-import {Entity, model, property} from '@loopback/repository';
+import { Entity, model, property } from '@loopback/repository';
 
-@model()
+@model({
+  settings: {
+    strict: false,
+    mysql: { table: 'roles' },
+  }
+})
 export class Role extends Entity {
   @property({
-    type: 'string',
+    type: 'number',
     id: true,
+    generated: false,
   })
-  id?: string;
+  id?: number;
 
   @property({
     type: 'string',
     required: true,
   })
-  description: string;
+  name: string;
+
+  @property({
+    type: 'string',
+  })
+  description?: string;
 
   constructor(data?: Partial<Role>) {
     super(data);

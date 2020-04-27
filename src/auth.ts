@@ -17,13 +17,13 @@ import {
   AuthenticateFn,
   AuthenticationStrategy,
 } from '@loopback/authentication';
-import {UserProfile, securityId} from '@loopback/security';
-import {StrategyAdapter} from '@loopback/authentication-passport';
-import {AuthMetadataProvider} from '@loopback/authentication/dist/providers/auth-metadata.provider';
-import {UserRepository, UserRoleRepository} from './repositories';
-import {repository} from '@loopback/repository';
-import {Strategy as JwtStrategy, ExtractJwt} from 'passport-jwt';
-import {HttpErrors, Request} from '@loopback/rest';
+import { UserProfile, securityId } from '@loopback/security';
+import { StrategyAdapter } from '@loopback/authentication-passport';
+import { AuthMetadataProvider } from '@loopback/authentication/dist/providers/auth-metadata.provider';
+import { UserRepository, UserRoleRepository } from './repositories';
+import { repository } from '@loopback/repository';
+import { Strategy as JwtStrategy, ExtractJwt } from 'passport-jwt';
+import { HttpErrors, Request } from '@loopback/rest';
 
 export const JWT_STRATEGY_NAME = 'jwt';
 
@@ -32,7 +32,7 @@ export const JWT_STRATEGY_NAME = 'jwt';
 // we will use 'secured' to match Spring Security annotation.
 export function secured(
   type: SecuredType = SecuredType.IS_AUTHENTICATED, // more on this below
-  roles: string[] = [],
+  roles: number[] = [],
   strategy: string = 'jwt',
   options?: object,
 ) {
@@ -57,14 +57,14 @@ export enum SecuredType {
 // extended interface of the default AuthenticationMetadata which only has `strategy` and `options`
 export interface MyAuthenticationMetadata extends AuthenticationMetadata {
   type: SecuredType;
-  roles: string[];
+  roles: number[];
 }
 
 // metadata provider for `MyAuthenticationMetadata`. Will supply method's metadata when injected
 export class MyAuthMetadataProvider extends AuthMetadataProvider {
   constructor(
-    @inject(CoreBindings.CONTROLLER_CLASS, {optional: true}) protected _controllerClass: Constructor<{}>,
-    @inject(CoreBindings.CONTROLLER_METHOD_NAME, {optional: true}) protected _methodName: string,
+    @inject(CoreBindings.CONTROLLER_CLASS, { optional: true }) protected _controllerClass: Constructor<{}>,
+    @inject(CoreBindings.CONTROLLER_METHOD_NAME, { optional: true }) protected _methodName: string,
   ) {
     super(_controllerClass, _methodName);
   }
@@ -84,8 +84,13 @@ export const JWT_SECRET = 'changeme';
 
 // the required interface to filter login payload
 export interface Credentials {
-  username: string;
+  email: string;
   password: string;
+}
+
+// the required interface to filter login by google payload
+export interface GoogleCredentials {
+  code: string;
 }
 
 // implement custom namespace bindings
@@ -99,12 +104,12 @@ export class MyAuthAuthenticationStrategyProvider implements Provider<Authentica
     @inject(AuthenticationBindings.METADATA) private metadata: MyAuthenticationMetadata,
     @repository(UserRepository) private userRepository: UserRepository,
     @repository(UserRoleRepository) private userRoleRepository: UserRoleRepository,
-  ) {}
+  ) { }
 
   value(): ValueOrPromise<AuthenticationStrategy | undefined> {
     if (!this.metadata) return;
 
-    const {strategy} = this.metadata;
+    const { strategy } = this.metadata;
     if (strategy === JWT_STRATEGY_NAME) {
       const jwtStrategy = new JwtStrategy(
         {
@@ -131,13 +136,15 @@ export class MyAuthAuthenticationStrategyProvider implements Provider<Authentica
     done: (err: Error | null, user?: UserProfile | false, info?: Object) => void,
   ) {
     try {
-      const {username} = payload;
-      const user = await this.userRepository.findById(username);
+      const { email } = payload;
+      const user = await this.userRepository.findOne({ where: { email: email } });
       if (!user) done(null, false);
 
-      await this.verifyRoles(username);
+      if (user === null || !user.id) throw new Error('InvalidLoginError');
 
-      done(null, {name: username, email: user.email, [securityId]: username});
+      await this.verifyRoles(user.id);
+
+      done(null, { name: user.name, email: user.email, [securityId]: user.email });
     } catch (err) {
       if (err.name === 'UnauthorizedError') done(null, false);
       done(err, false);
@@ -145,22 +152,22 @@ export class MyAuthAuthenticationStrategyProvider implements Provider<Authentica
   }
 
   // verify user's role based on the SecuredType
-  async verifyRoles(username: string) {
-    const {type, roles} = this.metadata;
+  async verifyRoles(userId: number) {
+    const { type, roles } = this.metadata;
 
     if ([SecuredType.IS_AUTHENTICATED, SecuredType.PERMIT_ALL].includes(type)) return;
 
     if (type === SecuredType.HAS_ANY_ROLE) {
       if (!roles.length) return;
-      const {count} = await this.userRoleRepository.count({
-        userId: username,
-        roleId: {inq: roles},
+      const { count } = await this.userRoleRepository.count({
+        user_id: userId,
+        role_id: { inq: roles },
       });
 
       if (count) return;
     } else if (type === SecuredType.HAS_ROLES && roles.length) {
-      const userRoles = await this.userRoleRepository.find({where: {userId: username}});
-      const roleIds = userRoles.map(ur => ur.roleId);
+      const userRoles = await this.userRoleRepository.find({ where: { user_id: userId } });
+      const roleIds = userRoles.map(ur => ur.role_id);
       let valid = true;
       for (const role of roles)
         if (!roleIds.includes(role)) {
@@ -181,7 +188,7 @@ export class MyAuthActionProvider implements Provider<AuthenticateFn> {
     @inject.getter(MyAuthBindings.STRATEGY) readonly getStrategy: Getter<AuthenticationStrategy>,
     @inject.setter(AuthenticationBindings.CURRENT_USER) readonly setCurrentUser: Setter<UserProfile>,
     @inject.getter(AuthenticationBindings.METADATA) readonly getMetadata: Getter<MyAuthenticationMetadata>,
-  ) {}
+  ) { }
 
   value(): AuthenticateFn {
     return request => this.action(request);

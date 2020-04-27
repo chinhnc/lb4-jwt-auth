@@ -1,8 +1,13 @@
-import {Entity, model, property, belongsTo} from '@loopback/repository';
-import {User} from './user.model';
-import {Role} from './role.model';
+import { Entity, model, property, belongsTo } from '@loopback/repository';
+import { User } from './user.model';
+import { Role } from './role.model';
 
-@model()
+@model({
+  settings: {
+    strict: false,
+    mysql: { table: 'user_roles' },
+  }
+})
 export class UserRole extends Entity {
   @property({
     type: 'number',
@@ -12,10 +17,10 @@ export class UserRole extends Entity {
   id?: number;
 
   @belongsTo(() => User)
-  userId: string;
+  user_id: number;
 
   @belongsTo(() => Role)
-  roleId: string;
+  role_id: number;
 
   constructor(data?: Partial<UserRole>) {
     super(data);
